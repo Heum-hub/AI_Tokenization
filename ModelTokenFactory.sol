@@ -11,7 +11,7 @@ contract ModelTokenFactory {
     IERC20 public modelToken;
 
     // AI model의 개발자
-    address private developer;
+    address public developer;
 
     // 거래 시 동시성 문제 처리(스왑 메서드에 붙임)
     uint private unlocked = 1;
