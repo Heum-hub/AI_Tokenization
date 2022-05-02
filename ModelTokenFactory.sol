@@ -27,8 +27,9 @@ contract ModelTokenFactory {
     배포할 때 AI model 토큰의 이름, 심볼, 발행량을 결정하게 된다
     */
     constructor(string memory name, string memory symbol, uint256 totalSupply) {
-        modelToken = new ERC20(name, symbol, totalSupply);
+        modelToken = new ERC20(name, symbol, totalSupply * 10 ** 18);
         developer = msg.sender;
+        modelToken.mint(address(this), totalSupply);
     }
 
     /*
@@ -69,7 +70,7 @@ contract ModelTokenFactory {
     // AI model 토큰의 가격을 보여주는 메서드(단위: ETH)
     function getModelTokenPrice() public view returns (uint256 modelTokenPrice) {
 
-        modelTokenPrice = modelToken.balanceOf(address(this)) / address(this).balance;
+        modelTokenPrice = address(this).balance / modelToken.balanceOf(address(this));
 
         return modelTokenPrice;
 
