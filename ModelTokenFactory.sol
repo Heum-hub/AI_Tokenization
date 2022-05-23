@@ -68,7 +68,7 @@ contract ModelTokenFactory {
     }
     
     // AI model 토큰의 가격을 보여주는 메서드(단위: ETH)
-    function getModelTokenPrice() public view returns (uint256 modelTokenPrice) {
+    function getModelTokenPrice() external view returns (uint256 modelTokenPrice) {
 
         modelTokenPrice = address(this).balance / modelToken.balanceOf(address(this));
 
