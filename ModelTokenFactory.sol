@@ -2,10 +2,19 @@
 
 pragma solidity ^0.8.0;
 
-import "./IERC20.sol";
-import "./ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import '@chainlink/contracts/src/v0.8/ChainlinkClient.sol';
+import '@chainlink/contracts/src/v0.8/ConfirmedOwner.sol';
 
-contract ModelTokenFactory {
+contract ModelTokenFactory is ChainlinkClient, ConfirmedOwner, Ownable {
+    // 체인링크 데이터 오라클 사용
+    using Chainlink for Chainlink.Request;
+
+    uint256 public accuracy;
+    bytes32 private jobId;
+    uint256 private fee;
 
     // AI model 토큰
     IERC20 public modelToken;
@@ -25,10 +34,17 @@ contract ModelTokenFactory {
     /*
     AI model의 개발자가 컨트랙트를 배포하게 된다
     배포할 때 AI model 토큰의 이름, 심볼, 발행량을 결정하게 된다
+    체인링크 오라클을 초기화
     */
-    constructor(string memory name, string memory symbol, uint256 totalSupply) {
+    constructor(string memory name, string memory symbol, uint256 totalSupply) ConfirmedOwner(msg.sender) {
         modelToken = new ERC20(name, symbol, totalSupply * 10 ** 18);
         developer = msg.sender;
+        
+        setChainlinkToken(0x01BE23585060835E02B77ef475b0Cc51aA1e0709);
+        setChainlinkOracle(0xf3FBB7f3391F62C8fe53f89B41dFC8159EE9653f);
+        jobId = 'ca98366cc7314957b8c012c72f05aeeb';
+        fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job);
+        
         modelToken.mint(address(this), totalSupply);
     }
 
@@ -65,6 +81,42 @@ contract ModelTokenFactory {
 
         payable(msg.sender).transfer(ethAmount);
  
+    }
+    
+    // 오라클을 사용하여 학습 서버에 정확도 요청하여 블록체인에 기록
+    /**
+     * Create a Chainlink request to retrieve API response, find the target
+     * data, then multiply by 1000000000000000000 (to remove decimal places from data).
+     */
+    function requestAccuracyData() public returns (bytes32 requestId) {
+        Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
+
+        // Set the URL to perform the GET request on
+        req.add('get', 'URL');
+        // Set path for json
+        req.add('path', 'Accuracy'); // Chainlink nodes 1.0.0 and later support this format
+
+        // Multiply the result by 1000000000000000000 to remove decimals
+        int256 timesAmount = 10**18;
+        req.addInt('times', timesAmount);
+
+        // Sends the request
+        return sendChainlinkRequest(req, fee);
+    }
+
+    /**
+     * Receive the response in the form of uint256
+     */
+    function fulfill(bytes32 _requestId, uint256 _accuracy) public recordChainlinkFulfillment(_requestId) {
+        accuracy = _accuracy;
+    }
+
+    /**
+     * Allow withdraw of Link tokens from the contract
+     */
+    function withdrawLink() public onlyOwner {
+        LinkTokenInterface link = LinkTokenInterface(chainlinkTokenAddress());
+        require(link.transfer(msg.sender, link.balanceOf(address(this))), 'Unable to transfer');
     }
     
     // AI model 토큰의 가격을 보여주는 메서드(단위: ETH)
